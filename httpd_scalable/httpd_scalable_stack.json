@@ -1,0 +1,252 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "VpcTag": {
+      "Type": "String",
+      "Description": "VPC Tag (vpc2014 or vpcsdicd)",
+      "Default": "default"
+    },
+    "TagName": {
+      "Type": "String",
+      "Default": "demo-codes-stack"
+    },
+    "ImageId": {
+      "Description": "AMI Image id",
+      "Type": "String",
+      "Default": "ami-e3106686"
+    },
+    "DiskSize": {
+      "Description": "EBS volume disk size in GB",
+      "Type": "String",
+      "Default": "8"
+    },
+    "VolumeType": {
+      "Description": "EBS volume type (standard, gp2)",
+      "Type": "String",
+      "Default": "gp2"
+    },
+    "InstanceType": {
+      "Description": "Instance Type",
+      "Type": "String",
+      "Default": "t2.micro"
+    }
+  },
+  "Mappings": {
+    "VpcMappings": {
+      "default": {
+        "VpcId": "vpc-98b643fd",
+        "KeyName": "itm544",
+        "AvailabilityZones": [
+          "us-east-1a",
+          "us-east-1b",
+          "us-east-1d"
+        ],
+        "SubnetIds": [
+          "subnet-ebb2509d",
+          "subnet-070e3b2c",
+          "subnet-3c230d7a"
+        ],
+        "AlarmSNS": "arn:aws:sns:us-east-1:943227140367:cloudwatch-alarms",
+        "SecurityGroups": [
+          "sg-2a509b4f"
+        ]
+      }
+    }
+  },
+  "Resources": {
+    "ELB": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "LoadBalancerName": {
+          "Ref": "TagName"
+        },
+        "SecurityGroups": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "SecurityGroups"
+          ]
+        },
+        "Subnets": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "SubnetIds"
+          ]
+        },
+        "Listeners": [
+          {
+            "LoadBalancerPort": 80,
+            "InstancePort": 80,
+            "Protocol": "HTTP",
+            "InstanceProtocol": "HTTP"
+          }
+        ],
+        "HealthCheck": {
+          "Target": "HTTP:80/index.html",
+          "HealthyThreshold": "2",
+          "UnhealthyThreshold": "10",
+          "Interval": "180",
+          "Timeout": "15"
+        }
+      }
+    },
+    "ASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AvailabilityZones": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "AvailabilityZones"
+          ]
+        },
+        "HealthCheckType": "ELB",
+        "HealthCheckGracePeriod": "6000",
+        "LaunchConfigurationName": {
+          "Ref": "Lconfig"
+        },
+        "MinSize": "1",
+        "MaxSize": "1",
+        "DesiredCapacity": "1",
+        "LoadBalancerNames": [
+          {
+            "Ref": "ELB"
+          }
+        ],
+        "VPCZoneIdentifier": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "SubnetIds"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "TagName"
+            },
+            "PropagateAtLaunch": "true"
+          }
+        ]
+      }
+    },
+    "WaitHandle": {
+      "Type": "AWS::CloudFormation::WaitConditionHandle"
+    },
+    "WaitCondition": {
+      "Type": "AWS::CloudFormation::WaitCondition",
+      "DependsOn": "ASG",
+      "Properties": {
+        "Handle": {
+          "Ref": "WaitHandle"
+        },
+        "Timeout": "300"
+      }
+    },
+    "Lconfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "IamInstanceProfile": "arn:aws:iam::943227140367:instance-profile/test-role",
+        "ImageId": {
+          "Ref": "ImageId"
+        },
+        "InstanceMonitoring": "false",
+        "InstanceType": "t2.micro",
+        "KeyName": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "KeyName"
+          ]
+        },
+        "SecurityGroups": {
+          "Fn::FindInMap": [
+            "VpcMappings",
+            {
+              "Ref": "VpcTag"
+            },
+            "SecurityGroups"
+          ]
+        },
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/xvda",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeType": {
+                "Ref": "VolumeType"
+              },
+              "VolumeSize": {
+                "Ref": "DiskSize"
+              }
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+               "#!/bin/bash\n",
+			   "yum update -y aws-cfn-bootstrap\n",
+			   "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackName" },
+               "         -r Lconfig ",
+               "         --region ", { "Ref" : "AWS::Region" },
+                "#apt-get update\n",
+                "#apt-get -y upgrade\n",
+                "yum -y install httpd\n",
+                "service httpd start\n",
+				"touch /var/www/html/index.html\n",
+                "echo test > /var/www/html/index.html\n",
+                "/opt/aws/bin/cfn-signal -e 0 --stack ", { "Ref" : "AWS::StackName" },
+               "         --resource ASG \n"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "BalancerName": {
+      "Description": "ELB DNS Name",
+      "Value": {
+        "Fn::GetAtt": [
+          "ELB",
+          "DNSName"
+        ]
+      }
+    },
+    "BalancerURL": {
+      "Description": "ELB URL",
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Fn::GetAtt": [
+                "ELB",
+                "DNSName"
+              ]
+            },
+            "/"
+          ]
+        ]
+      }
+    }
+  }
+}
