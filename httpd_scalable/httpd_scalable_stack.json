@@ -140,19 +140,6 @@
         ]
       }
     },
-    "WaitHandle": {
-      "Type": "AWS::CloudFormation::WaitConditionHandle"
-    },
-    "WaitCondition": {
-      "Type": "AWS::CloudFormation::WaitCondition",
-      "DependsOn": "ASG",
-      "Properties": {
-        "Handle": {
-          "Ref": "WaitHandle"
-        },
-        "Timeout": "300"
-      }
-    },
     "Lconfig": {
       "Type": "AWS::AutoScaling::LaunchConfiguration",
       "Properties": {
