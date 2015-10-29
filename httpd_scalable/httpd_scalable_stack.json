@@ -3,7 +3,6 @@
   "Parameters": {
     "VpcTag": {
       "Type": "String",
-      "Description": "VPC Tag (vpc2014 or vpcsdicd)",
       "Default": "default"
     },
     "TagName": {
