@@ -1,27 +1,41 @@
 __author__ = 'shafi'
 
-from boto import ec2
-from boto import s3
+#!/usr/bin/python3
 
-def list_s3():
-   # Ensure Dev profile exists in aws config or bot config file
-   conn = s3.connect_to_region('us-east-1', profile_name='default')
+import http.client
+import hashlib
+import socket
 
-   # assuming test-bucket exists
-   bucket = conn.get_bucket('iit-bigdata')
+indicators = [
+                "instance-id",
+                "public-ipv4",
+                "public-hostname",
+                "ami-id",
+                "hostname",
+                "placement/availability-zone",
+                "instance-id",
+                "instance-type",
+                "ami-launch-index",
+                "security-groups",
+                "iam/info",
+                "services/domain"
+]
 
-   rs = bucket.list()
+def getInfo(datapoint):
+    conn = http.client.HTTPConnection("169.254.169.254")
+    conn.request("GET","/latest/meta-data/" + datapoint)
+    return conn.getresponse().read().decode()
 
-   for key in rs:
-      print key.name
+def getSignature():
+    conn = http.client.HTTPConnection("169.254.169.254")
+    conn.request("GET","/latest/dynamic/instance-identity/signature")
+    return hashlib.sha256(conn.getresponse().read()).hexdigest()
 
-def get_instance_info():
+info = {"signature": getSignature(), "_id": socket.gethostname()}
 
-   conn = ec2.connect_to_region('us-east-1', profile_name='default')
+for i in indicators:
+    val = getInfo(i)
+    if '<?' not in val:
+        info[i] = getInfo(i)
 
-   # assuming test-bucket exists
-   info = conn.get_all_instance_status(instance_ids='i-eba08a54')
-   instances = [i for r in info for i in r.instances]
-   print instances
-
-get_instance_info()
+print(info)
