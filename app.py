@@ -75,13 +75,19 @@ def restart():
     os.popen(cmd)
     return "Succes"
 
+@app.route('/burncpu', methods = ['GET'])
+def burnCpu():
+    cmd = './scaler.sh'
+    os.popen(cmd)
+    return "Succes"
+
 @app.route('/regions', methods = ['GET'])
-def demo5():
+def getRegions():
     '''Print available functions.'''
-    cmd = 'aws ec2 describe-regions'
+    cmd = 'aws ec2 describe-regions --region us-east-1'
     running = os.popen(cmd)
     op = json.load(running)
-    return render_template('index.html', res=op)
+    return jsonify(op)
 
 if __name__ == '__main__':
     file_handler = logging.FileHandler('/tmp/app.log')

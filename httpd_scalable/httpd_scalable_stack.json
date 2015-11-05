@@ -7,7 +7,7 @@
     },
     "TagName": {
       "Type": "String",
-      "Default": "demo-codes-stack"
+      "Default": "demo-codes-stack-1"
     },
     "ImageId": {
       "Description": "AMI Image id",
@@ -56,9 +56,6 @@
     "ELB": {
       "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
       "Properties": {
-        "LoadBalancerName": {
-          "Ref": "TagName"
-        },
         "SecurityGroups": {
           "Fn::FindInMap": [
             "VpcMappings",
@@ -83,6 +80,18 @@
             "InstancePort": 80,
             "Protocol": "HTTP",
             "InstanceProtocol": "HTTP"
+          },
+          {
+            "LoadBalancerPort": 8080,
+            "InstancePort": 8080,
+            "Protocol": "HTTP",
+            "InstanceProtocol": "HTTP"
+          },
+          {
+            "LoadBalancerPort": 5000,
+            "InstancePort": 5000,
+            "Protocol": "HTTP",
+            "InstanceProtocol": "HTTP"
           }
         ],
         "HealthCheck": {
@@ -94,7 +103,7 @@
         }
       }
     },
-    "ASG": {
+    "WebServerGroup": {
       "Type": "AWS::AutoScaling::AutoScalingGroup",
       "Properties": {
         "AvailabilityZones": {
@@ -137,6 +146,80 @@
             "PropagateAtLaunch": "true"
           }
         ]
+      }
+    },
+    "WebServerScaleUpPolicy": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "AdjustmentType": "ChangeInCapacity",
+        "AutoScalingGroupName": {
+          "Ref": "WebServerGroup"
+        },
+        "Cooldown": "60",
+        "ScalingAdjustment": "1"
+      }
+    },
+    "WebServerScaleDownPolicy": {
+      "Type": "AWS::AutoScaling::ScalingPolicy",
+      "Properties": {
+        "AdjustmentType": "ChangeInCapacity",
+        "AutoScalingGroupName": {
+          "Ref": "WebServerGroup"
+        },
+        "Cooldown": "60",
+        "ScalingAdjustment": "-1"
+      }
+    },
+    "CPUAlarmHigh": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Scale-up if CPU > 90% for 2 minutes",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Statistic": "Average",
+        "Period": "60",
+        "EvaluationPeriods": "2",
+        "Threshold": "90",
+        "AlarmActions": [
+          {
+            "Ref": "WebServerScaleUpPolicy"
+          }
+        ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": {
+              "Ref": "WebServerGroup"
+            }
+          }
+        ],
+        "ComparisonOperator": "GreaterThanThreshold"
+      }
+    },
+    "CPUAlarmLow": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Scale-down if CPU < 5% for 10 minutes",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Statistic": "Average",
+        "Period": "600",
+        "EvaluationPeriods": "6",
+        "Threshold": "70",
+        "AlarmActions": [
+          {
+            "Ref": "WebServerScaleDownPolicy"
+          }
+        ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": {
+              "Ref": "WebServerGroup"
+            }
+          }
+        ],
+        "ComparisonOperator": "LessThanThreshold"
       }
     },
     "Lconfig": {
@@ -186,19 +269,21 @@
             "Fn::Join": [
               "",
               [
-               "#!/bin/bash\n",
-			   "yum update -y aws-cfn-bootstrap\n",
-			   "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackName" },
-               "         -r Lconfig ",
-               "         --region ", { "Ref" : "AWS::Region" },
-                "#apt-get update\n",
-                "#apt-get -y upgrade\n",
-                "yum -y install httpd\n",
+                "#!/bin/bash\n",
+                "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackName" },
+                "         -r WebServerGroup ",
+                "\n",
+                "yum -y install httpd awscli git\n",
                 "service httpd start\n",
-				"touch /var/www/html/index.html\n",
+                "touch /var/www/html/index.html\n",
                 "echo test > /var/www/html/index.html\n",
+                "git clone https://github.com/democodes/cloud-stacks.git\n",
+                "pip install flask\n",
+                "chmod a+x cloud-stacks/appy.py\n",
+                "cd cloud-stacks;nohup python app.py &\n",
                 "/opt/aws/bin/cfn-signal -e 0 --stack ", { "Ref" : "AWS::StackName" },
-               "         --resource ASG \n"
+                "         --resource WebServerGroup \n",
+                "'\n"
               ]
             ]
           }
