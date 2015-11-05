@@ -34,7 +34,7 @@
     "VpcMappings": {
       "default": {
         "VpcId": "vpc-98b643fd",
-        "KeyName": "itm544",
+        "KeyName": "shafi-aws",
         "AvailabilityZones": [
           "us-east-1a",
           "us-east-1b",
@@ -273,10 +273,11 @@
                 "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackName" },
                 "         -r WebServerGroup ",
                 "\n",
-                "yum -y install httpd awscli git\n",
+                "yum -y install httpd awscli 3python34\n",
                 "service httpd start\n",
                 "touch /var/www/html/index.html\n",
                 "echo test > /var/www/html/index.html\n",
+                "python3 meta/ec2-meta.py > /var/www/html/index.html\n",
                 "git clone https://github.com/democodes/cloud-stacks.git\n",
                 "pip install flask\n",
                 "chmod a+x cloud-stacks/appy.py\n",
@@ -307,7 +308,7 @@
         "Fn::Join": [
           "",
           [
-            "https://",
+            "http://",
             {
               "Fn::GetAtt": [
                 "ELB",
