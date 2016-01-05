@@ -9,5 +9,4 @@ source ~/.bash_profile
 terraform -v
 terraform
 
-#terraform plan -var 'key_name=shafi-aws' -var 'aws_access_key=AxxxxLQ' -var 'aws_secret_key=Axxxxxcd
-# '
+#terraform plan -var 'key_name=shafi-aws' -var 'aws_access_key=AxxxxLQ' -var 'aws_secret_key=Axxxxxcdhos'
